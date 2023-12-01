@@ -1,29 +1,4 @@
-#[derive(Debug)]
-struct FirstLast {
-    first: Option<u32>,
-    last: Option<u32>,
-}
-
-impl FirstLast {
-    fn new() -> Self {
-        Self {
-            first: None,
-            last: None,
-        }
-    }
-
-    fn record(&mut self, n: u32) {
-        if self.first.is_none() {
-            self.first = Some(n)
-        } else {
-            self.last = Some(n)
-        }
-    }
-
-    fn value(self) -> u32 {
-        self.first.unwrap() * 10 + self.last.unwrap_or(self.first.unwrap())
-    }
-}
+struct NumberPair(Option<u32>, Option<u32>);
 
 struct SpelledOutNumber(u32);
 
@@ -54,84 +29,143 @@ impl SpelledOutNumber {
     }
 }
 
+fn try_parse_at(input: &[char]) -> Option<u32> {
+    if let Some(digit) = input[0].to_digit(10) {
+        Some(digit)
+    } else {
+        SpelledOutNumber::parse(&input[0..input.len()]).map(|s| s.0)
+    }
+}
+
 fn main() {
     let input = std::fs::read_to_string("./input").unwrap();
 
-    let approaches: Vec<u32> = vec![
+    let approaches: Vec<Box<dyn Fn(&[char]) -> NumberPair>> = vec![
         // go through the string one by one, check the value at that position and record it into
         // a `FirstLast` recorder that holds state
-        input
-            .lines()
-            .map(|line| {
-                let line: Vec<char> = line.chars().collect();
-                let mut recorder = FirstLast::new();
-                for i in 0..line.len() {
-                    let c = &line[i];
-                    if let Some(digit) = c.to_digit(10) {
-                        recorder.record(digit)
-                    } else {
-                        if let Some(digit) = SpelledOutNumber::parse(&line[i..]) {
-                            recorder.record(digit.0)
-                        }
+        Box::new(|line| {
+            #[derive(Debug)]
+            struct Recorder {
+                first: Option<u32>,
+                last: Option<u32>,
+            }
+
+            impl Recorder {
+                fn new() -> Self {
+                    Self {
+                        first: None,
+                        last: None,
                     }
                 }
-                recorder
-            })
-            .map(FirstLast::value)
-            .sum(),
+
+                fn record(&mut self, n: u32) {
+                    if self.first.is_none() {
+                        self.first = Some(n)
+                    } else {
+                        self.last = Some(n)
+                    }
+                }
+
+                fn finish(self) -> NumberPair {
+                    NumberPair(self.first, self.last)
+                }
+            }
+
+            let mut recorder = Recorder::new();
+            for i in 0..line.len() {
+                let c = &line[i];
+                if let Some(digit) = c.to_digit(10) {
+                    recorder.record(digit)
+                } else {
+                    if let Some(digit) = SpelledOutNumber::parse(&line[i..]) {
+                        recorder.record(digit.0)
+                    }
+                }
+            }
+            recorder.finish()
+        }),
         //
-        // go through the string one by one, transform it into an array of digits and go from there
-        // i prefer this approach, as there is no stateful iteration
-        input
-            .lines()
-            .map(|line| line.chars().collect::<Vec<char>>())
-            .map(|line| {
-                (0..line.len())
-                    .map(move |pos| {
-                        if let Some(digit) = line[pos].to_digit(10) {
-                            Some(digit)
-                        } else {
-                            SpelledOutNumber::parse(&line[pos..line.len()]).map(|s| s.0)
-                        }
-                    })
-                    .filter_map(|e| e)
-                    .collect::<Vec<u32>>()
-            })
+        // Go through the string one by one, transform it into an array of digits and go from there
+        // I prefer this approach, as there is no stateful iteration and it's very easy to understand
+        Box::new(|line| {
+            let result = (0..line.len())
+                .map(move |pos| try_parse_at(&line[pos..line.len()]))
+                // remove none values
+                .filter_map(|e| e)
+                .collect::<Vec<u32>>();
             // peculiar: if there is only one digit, use it for both the tenths digit and and ones digit
-            .map(|result| (result[0], *result.last().unwrap_or(&result[0])))
-            .map(|(d1, d2)| d1 * 10 + d2)
-            .sum(),
+            NumberPair(result.get(0).copied(), result.last().copied())
+        }),
+        //
+        // this one does two scans, one from each end. it's elegant because it does not require special
+        // handling for lines containing only one digit, i.e. it will *always* return (Some, Some)
+        Box::new(|line| {
+            NumberPair(
+                {
+                    let mut tenth = None;
+                    for pos in 0..line.len() {
+                        if let Some(digit) = try_parse_at(&line[pos..line.len()]) {
+                            tenth = Some(digit);
+                            break;
+                        }
+                    }
+                    tenth
+                },
+                {
+                    let mut ones = None;
+
+                    for pos in (0..line.len()).rev() {
+                        if let Some(digit) = try_parse_at(&line[pos..line.len()]) {
+                            ones = Some(digit);
+                            break;
+                        }
+                    }
+                    ones
+                },
+            )
+        }),
     ];
 
-    enum Acc {
-        Init,
-        Some(u32),
-    }
-
-    impl Acc {
-        fn unwrap(self) -> u32 {
-            match self {
-                Self::Init => panic!("Accumulator did not contain a number"),
-                Self::Some(val) => val,
-            }
-        }
-    }
-
-    // check that all approaches result in the same result
-    let result = approaches
-        .iter()
-        // try_reduce would be nicer here
-        .try_fold(Acc::Init, |acc, value| {
-            if let Acc::Some(acc) = acc {
-                if acc != *value {
-                    return Err("approaches give different results");
-                }
-            };
-            Ok(Acc::Some(*value))
+    let result: u32 = input
+        .lines()
+        .map(|line| line.chars().collect::<Vec<char>>())
+        .map(|line| {
+            (
+                approaches
+                    .iter()
+                    .map(|approach| approach(&line))
+                    .map(|pair| {
+                        (
+                            // we assume that there will *always* at least be one numbers in there
+                            pair.0.unwrap(),
+                            // if there is no second number, we "reuse" the first. so "7" => 77
+                            pair.1.or(pair.0).unwrap(),
+                        )
+                    })
+                    .collect::<Vec<(u32, u32)>>(),
+                line,
+            )
         })
-        .unwrap() // check that there were no different results
-        .unwrap() // check that there were results at all (cannot fail)
-    ;
+        .map(|(results, line)| {
+            // check that all approaches result in the same result
+            let result = results[0];
+            let mut all_agree = true;
+            for other_result in &results[1..] {
+                if *other_result != result {
+                    all_agree = false;
+                }
+            }
+
+            if !all_agree {
+                eprintln!("approaches yield different results!");
+                eprintln!("input: {}", line.iter().collect::<String>());
+                eprintln!("results: {results:?}");
+            }
+
+            results[0]
+        })
+        .map(|(tenth, ones)| tenth * 10 + ones)
+        .sum();
 
     println!("{result}");
 }
