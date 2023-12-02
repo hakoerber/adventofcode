@@ -1,10 +1,47 @@
+use core::fmt;
 use std::collections::HashMap;
+use std::error::Error;
+
+use nom::{
+    bytes::complete::{tag, take_while1},
+    character::complete::char,
+    combinator::{cut, eof, map, map_res},
+    error::{context, VerboseError},
+    multi::{many0, separated_list1},
+    sequence::{delimited, separated_pair, terminated, tuple},
+    Err as NomErr, IResult,
+};
+
+#[derive(Debug)]
+struct MyError(String);
+
+impl Error for MyError {}
+
+impl fmt::Display for MyError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 enum Color {
     Red,
     Green,
     Blue,
+}
+
+impl fmt::Display for Color {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Self::Red => "Red",
+                Self::Green => "Green",
+                Self::Blue => "Blue",
+            }
+        )
+    }
 }
 
 impl TryFrom<&str> for Color {
@@ -20,54 +57,92 @@ impl TryFrom<&str> for Color {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+struct GameId(u32);
+
+#[derive(Debug, PartialEq, Eq)]
 struct Game {
-    id: u32,
+    id: GameId,
     draws: Vec<HashMap<Color, u32>>,
 }
 
 impl Game {
-    fn parse(line: &str) -> Result<Self, String> {
-        let mut list_of_draws: Vec<HashMap<Color, u32>> = vec![];
-
-        let (gameinfo, draws) = line
-            .split_once(':')
-            .ok_or("line did not contain : delimiter")?;
-
-        let id = {
-            let (game, id) = gameinfo
-                .split_once(' ')
-                .ok_or("gameinfo did not contain a space")?;
-            if game != "Game" {
-                return Err(format!("did not contain \"Game\" prefix, found \"{game}\""));
-            }
-            id.parse::<u32>()
-                .map_err(|e| format!("could not parse game id \"{id}\": {e}"))?
-        };
-
-        for draw in draws.split(';').map(|s| s.trim()) {
-            let mut colors: HashMap<Color, u32> = HashMap::new();
-            for color in draw.split(',').map(|s| s.trim()) {
-                let (count, color) = color
-                    .split_once(' ')
-                    .ok_or("count and color were not separated by space")?;
-                let color: Color = color.try_into()?;
-                let count = count
-                    .parse::<u32>()
-                    .map_err(|e| format!("could not parse color count \"{count}\": {e}"))?;
-
-                // insert returns Some(old_value) if the value as already present, this
-                // is treated as an error
-                if colors.insert(color, count).is_some() {
-                    return Err("color seen more than once".into());
-                }
-            }
-            list_of_draws.push(colors);
+    fn parse(line: &str) -> Result<Self, NomErr<VerboseError<&str>>> {
+        fn number(i: &str) -> IResult<&str, u32, VerboseError<&str>> {
+            context(
+                "number parsing",
+                map(
+                    take_while1::<_, &str, VerboseError<_>>(|c: char| c.is_ascii_digit()),
+                    |number| number.parse::<u32>().unwrap(),
+                ),
+            )(i)
         }
-        Ok(Self {
-            draws: list_of_draws,
-            id,
-        })
+
+        fn parse_line(
+            i: &str,
+        ) -> IResult<&str, (GameId, Vec<HashMap<Color, u32>>), VerboseError<&str>> {
+            let game_id = number;
+
+            let prefix = context(
+                "prefix",
+                map(
+                    delimited(
+                        tuple((terminated(tag("Game"), char(' ')),)),
+                        game_id,
+                        tuple((char(':'), char(' '))),
+                    ),
+                    GameId,
+                ),
+            );
+
+            let color_word = context(
+                "color name",
+                take_while1::<_, &str, VerboseError<_>>(|c: char| c.is_alphabetic()),
+            );
+
+            let color_name = context(
+                "color name",
+                cut(map_res(color_word, |s: &str| {
+                    s.try_into()
+                        .map_err(|s: String| nom::Err::Failure(format!("unknown color: {s}")))
+                })),
+            );
+
+            let color_count = context(
+                "color count",
+                map(separated_pair(number, char(' '), color_name), |color| {
+                    (color.1, color.0)
+                }),
+            );
+
+            let draw = context(
+                "draw",
+                map_res(
+                    separated_list1(tuple((char(','), many0(char(' ')))), color_count),
+                    |colors| {
+                        let mut hashmap = HashMap::new();
+                        for (color_name, color_count) in colors {
+                            if hashmap.insert(color_name, color_count).is_some() {
+                                return Err(format!("duplicate color found: {}", color_name));
+                            }
+                        }
+                        Ok(hashmap)
+                    },
+                ),
+            );
+
+            let draws = context(
+                "draws",
+                separated_list1(tuple((char(';'), many0(char(' ')))), draw),
+            );
+
+            context("main", terminated(tuple((prefix, draws)), eof))(i)
+        }
+
+        let (rest, (id, draws)) = parse_line(line)?;
+        assert!(rest.is_empty());
+
+        Ok(Self { draws, id })
     }
 
     fn minimum_cube_count(&self) -> HashMap<Color, u32> {
@@ -89,12 +164,12 @@ impl Game {
     }
 }
 
-fn parse_input(input: &str) -> Result<Vec<Game>, String> {
+fn parse_input(input: &str) -> Result<Vec<Game>, NomErr<VerboseError<&str>>> {
     input
         .lines()
         .map(|line| line.trim())
         .map(Game::parse)
-        .collect::<Result<Vec<Game>, String>>()
+        .collect::<Result<Vec<Game>, _>>()
 }
 
 fn count_possible_games(games: &[Game], limits: &HashMap<Color, u32>) -> Result<u32, String> {
@@ -114,6 +189,7 @@ fn count_possible_games(games: &[Game], limits: &HashMap<Color, u32>) -> Result<
                 .all(|possible| possible)
                 .then_some(game.id)
         })
+        .map(|game_id| game_id.0)
         .sum())
 }
 
@@ -132,21 +208,56 @@ fn limits() -> HashMap<Color, u32> {
 fn main() -> Result<(), String> {
     let input = std::fs::read_to_string("./input").unwrap();
 
-    let input = parse_input(&input)?;
-    let count = count_possible_games(&input, &limits())?;
+    match parse_input(&input) {
+        Ok(input) => {
+            let count = count_possible_games(&input, &limits())?;
 
-    println!("part 1 : {count}");
+            println!("part 1 : {count}");
 
-    let power = minimum_cube_powered(&input)?;
+            let power = minimum_cube_powered(&input)?;
 
-    println!("part 2 : {power}");
-
+            println!("part 2 : {power}");
+        }
+        Err(e) => match e {
+            NomErr::Incomplete(needed) => match needed {
+                nom::Needed::Unknown => eprintln!("unknown data needed"),
+                nom::Needed::Size(n) => eprintln!("needed {n} more bytes"),
+            },
+            NomErr::Error(e) | NomErr::Failure(e) => {
+                eprintln!("{}", nom::error::convert_error(input.as_str(), e))
+            }
+        },
+    };
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn game_parsing() {
+        assert_eq!(
+            Game::parse("Game 1: 5 blue, 1 red, 4 green; 2 red; 9 green, 13 blue").unwrap(),
+            Game {
+                id: GameId(1),
+                draws: vec![
+                    HashMap::from([(Color::Blue, 5), (Color::Red, 1), (Color::Green, 4)]),
+                    HashMap::from([(Color::Red, 2)]),
+                    HashMap::from([(Color::Green, 9), (Color::Blue, 13)]),
+                ]
+            }
+        );
+
+        assert!(Game::parse("Game 1: 5 blue").is_ok());
+        assert!(Game::parse("Game 1 5 blue").is_err());
+        assert!(Game::parse("Game 1: 5 blue;").is_err());
+        assert!(Game::parse("Gam 1: 5 blue").is_err());
+        assert!(Game::parse("game 1: 5 blue").is_err());
+        assert!(Game::parse("game a: 5 blue").is_err());
+        assert!(Game::parse("Game 1: 5 blu").is_err());
+        assert!(Game::parse("Game 1: x blue").is_err());
+    }
 
     #[test]
     fn example_01() {
