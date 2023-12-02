@@ -1,48 +1,12 @@
-struct NumberPair(Option<u32>, Option<u32>);
+pub struct NumberPair(Option<u32>, Option<u32>);
 
-struct SpelledOutNumber(u32);
+type Approach = Box<dyn Fn(&[char]) -> LineResult>;
+type LineResult = NumberPair;
 
-impl SpelledOutNumber {
-    fn parse(value: &[char]) -> Option<Self> {
-        let value: String = value.into_iter().collect();
-        if value.starts_with("one") {
-            Some(Self(1))
-        } else if value.starts_with("two") {
-            Some(Self(2))
-        } else if value.starts_with("three") {
-            Some(Self(3))
-        } else if value.starts_with("four") {
-            Some(Self(4))
-        } else if value.starts_with("five") {
-            Some(Self(5))
-        } else if value.starts_with("six") {
-            Some(Self(6))
-        } else if value.starts_with("seven") {
-            Some(Self(7))
-        } else if value.starts_with("eight") {
-            Some(Self(8))
-        } else if value.starts_with("nine") {
-            Some(Self(9))
-        } else {
-            None
-        }
-    }
-}
+mod part1 {
+    use super::{Approach, NumberPair};
 
-fn try_parse_at(input: &[char]) -> Option<u32> {
-    if let Some(digit) = input[0].to_digit(10) {
-        Some(digit)
-    } else {
-        SpelledOutNumber::parse(&input[0..input.len()]).map(|s| s.0)
-    }
-}
-
-fn main() {
-    let input = std::fs::read_to_string("./input").unwrap();
-
-    type Approach = Box<dyn Fn(&[char]) -> NumberPair>;
-
-    let parts: [Vec<Approach>; 2] = [
+    pub fn approaches() -> Vec<Approach> {
         vec![Box::new(|line| {
             struct Recorder {
                 first: Option<u32>,
@@ -78,7 +42,51 @@ fn main() {
                     val
                 })
                 .finish()
-        })],
+        })]
+    }
+}
+
+mod part2 {
+    use super::{Approach, NumberPair};
+
+    struct SpelledOutNumber(u32);
+
+    impl SpelledOutNumber {
+        fn parse(value: &[char]) -> Option<Self> {
+            let value: String = value.into_iter().collect();
+            if value.starts_with("one") {
+                Some(Self(1))
+            } else if value.starts_with("two") {
+                Some(Self(2))
+            } else if value.starts_with("three") {
+                Some(Self(3))
+            } else if value.starts_with("four") {
+                Some(Self(4))
+            } else if value.starts_with("five") {
+                Some(Self(5))
+            } else if value.starts_with("six") {
+                Some(Self(6))
+            } else if value.starts_with("seven") {
+                Some(Self(7))
+            } else if value.starts_with("eight") {
+                Some(Self(8))
+            } else if value.starts_with("nine") {
+                Some(Self(9))
+            } else {
+                None
+            }
+        }
+    }
+
+    fn try_parse_at(input: &[char]) -> Option<u32> {
+        if let Some(digit) = input[0].to_digit(10) {
+            Some(digit)
+        } else {
+            SpelledOutNumber::parse(&input[0..input.len()]).map(|s| s.0)
+        }
+    }
+
+    pub fn approaches() -> Vec<Approach> {
         vec![
             // go through the string one by one, check the value at that position and record it into
             // a `FirstLast` recorder that holds state
@@ -163,10 +171,14 @@ fn main() {
                     },
                 )
             }),
-        ],
-    ];
+        ]
+    }
+}
 
-    let results: [u32; 2] = parts.map(|approaches| {
+fn main() {
+    let input = std::fs::read_to_string("./input").unwrap();
+
+    let results: [u32; 2] = [part1::approaches(), part2::approaches()].map(|approaches| {
         input
             .lines()
             .map(|line| line.chars().collect::<Vec<char>>())
