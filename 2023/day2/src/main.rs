@@ -45,11 +45,11 @@ impl Game {
                 .map_err(|e| format!("could not parse game id \"{id}\": {e}"))?
         };
 
-        for draw in draws.split(";").map(|s| s.trim()) {
+        for draw in draws.split(';').map(|s| s.trim()) {
             let mut colors: HashMap<Color, u32> = HashMap::new();
-            for color in draw.split(",").map(|s| s.trim()) {
+            for color in draw.split(',').map(|s| s.trim()) {
                 let (count, color) = color
-                    .split_once(" ")
+                    .split_once(' ')
                     .ok_or("count and color were not separated by space")?;
                 let color: Color = color.try_into()?;
                 let count = count
@@ -58,7 +58,7 @@ impl Game {
 
                 // insert returns Some(old_value) if the value as already present, this
                 // is treated as an error
-                if let Some(_) = colors.insert(color, count) {
+                if colors.insert(color, count).is_some() {
                     return Err("color seen more than once".into());
                 }
             }
@@ -93,11 +93,11 @@ fn parse_input(input: &str) -> Result<Vec<Game>, String> {
     input
         .lines()
         .map(|line| line.trim())
-        .map(|line| Game::parse(line))
+        .map(Game::parse)
         .collect::<Result<Vec<Game>, String>>()
 }
 
-fn count_possible_games(games: &Vec<Game>, limits: &HashMap<Color, u32>) -> Result<u32, String> {
+fn count_possible_games(games: &[Game], limits: &HashMap<Color, u32>) -> Result<u32, String> {
     Ok(games
         .iter()
         .filter_map(|game| {
@@ -117,9 +117,9 @@ fn count_possible_games(games: &Vec<Game>, limits: &HashMap<Color, u32>) -> Resu
         .sum())
 }
 
-fn minimum_cube_powered(games: &Vec<Game>) -> Result<u32, String> {
+fn minimum_cube_powered(games: &[Game]) -> Result<u32, String> {
     Ok(games
-        .into_iter()
+        .iter()
         .map(|game| game.minimum_cube_count())
         .map(|counts| counts.into_values().product::<u32>())
         .sum())
