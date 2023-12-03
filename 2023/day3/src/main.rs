@@ -139,7 +139,7 @@ fn part2(input: &str) -> usize {
                 }
             }
         }
-        if matching_numbers.len() >= 2 {
+        if matching_numbers.len() == 2 {
             gear_ratios.push(matching_numbers);
         }
     }
