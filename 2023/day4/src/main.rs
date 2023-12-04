@@ -2,9 +2,11 @@ use std::cmp::min;
 
 use nom::{
     bytes::complete::tag,
-    character::complete::char,
+    character::complete::{char, digit1},
+    combinator::map_res,
     multi::{many1, separated_list1},
     sequence::{preceded, separated_pair, terminated, tuple},
+    Finish, IResult,
 };
 
 #[derive(Debug, PartialEq, Eq)]
@@ -14,89 +16,40 @@ struct Card {
     have_numbers: Vec<usize>,
 }
 
-mod parser {
-    use nom::{
-        branch::alt,
-        bytes::complete::take_while1,
-        character::complete::{char, satisfy},
-        combinator::map,
-        multi::count,
-        sequence::preceded,
-        IResult,
-    };
-
-    pub fn double_digit_number(i: &str) -> IResult<&str, usize> {
-        let digit = satisfy(|c| c.is_ascii_digit());
-
-        let single_digit = preceded(char(' '), count(&digit, 1));
-        let double_digit = count(&digit, 2);
-
-        let digit = alt((single_digit, double_digit));
-
-        let mut digit = map(digit, |chars| {
-            chars
-                .into_iter()
-                .collect::<String>()
-                .parse::<usize>()
-                .unwrap()
-        });
-
-        digit(i)
-    }
-
-    pub fn number(i: &str) -> IResult<&str, usize> {
-        map(
-            take_while1::<_, &str, _>(|c| c.is_ascii_digit()),
-            |s: &str| s.parse::<usize>().unwrap(),
-        )(i)
-    }
-
-    #[cfg(test)]
-    mod tests {
-        use super::*;
-
-        #[test]
-        fn parse_double_digit() {
-            assert_eq!(double_digit_number("23").unwrap(), ("", 23));
-            assert_eq!(double_digit_number("234").unwrap(), ("4", 23));
-            assert_eq!(double_digit_number(" 234").unwrap(), ("34", 2));
-            assert_eq!(double_digit_number(" 3").unwrap(), ("", 3));
-            assert_eq!(double_digit_number(" 3 ").unwrap(), (" ", 3));
-            assert!(double_digit_number("  3").is_err());
-        }
-
-        #[test]
-        fn parse_number() {
-            assert_eq!(number("23").unwrap(), ("", 23));
-            assert_eq!(number("2").unwrap(), ("", 2));
-            assert_eq!(number("2x").unwrap(), ("x", 2));
-            assert!(number(" 3").is_err());
-        }
-    }
-}
-
 impl Card {
-    fn parse(input: &str) -> Self {
-        let card_prefix = tuple((tag("Card"), many1(char(' '))));
+    fn parse(input: &str) -> Result<Self, String> {
+        fn number(i: &str) -> IResult<&str, usize> {
+            map_res(digit1, str::parse)(i)
+        }
 
-        let winning_numbers = separated_list1(char(' '), parser::double_digit_number);
-        let have_numbers = separated_list1(char(' '), parser::double_digit_number);
+        let card_prefix = tuple((
+            tag("Card"),
+            many1(char::<&str, nom::error::Error<&str>>(' ')),
+        ));
 
-        let numbers = separated_pair(winning_numbers, tag(" | "), have_numbers);
+        let winning_numbers = separated_list1(many1(char(' ')), number);
+        let have_numbers = separated_list1(many1(char(' ')), number);
 
-        let card_info = terminated(preceded(card_prefix, parser::number), char(':'));
+        let numbers = separated_pair(
+            winning_numbers,
+            tuple((many1(char(' ')), char('|'), many1(char(' ')))),
+            have_numbers,
+        );
 
-        let mut card = separated_pair(card_info, char(' '), numbers);
+        let card_info = terminated(preceded(card_prefix, number), char(':'));
 
-        let (rest, (card_id, (winning_numbers, have_numbers))) = card(input).unwrap();
+        let mut card = separated_pair(card_info, many1(char(' ')), numbers);
+
+        let (rest, (card_id, (winning_numbers, have_numbers))) =
+            card(input).finish().map_err(|e| e.to_string())?;
 
         assert!(rest.is_empty());
 
-        Self {
+        Ok(Self {
             id: card_id,
             winning_numbers,
             have_numbers,
-        }
+        })
     }
 
     fn matching_numbers(&self) -> Vec<usize> {
@@ -117,17 +70,16 @@ impl Card {
     }
 }
 
-fn part1(input: &str) -> usize {
+fn part1(input: &str) -> Result<usize, String> {
     input
         .lines()
         .map(Card::parse)
-        .map(|card| card.value())
-        .sum()
+        .try_fold(0, |accum, card| Ok(accum + card?.value()))
 }
 
-fn part2(input: &str) -> usize {
-    let cards: Vec<Card> = input.lines().map(Card::parse).collect();
-    let mut card_count: Vec<usize> = std::iter::repeat(1).take(cards.len()).collect();
+fn part2(input: &str) -> Result<usize, String> {
+    let cards: Vec<Card> = input.lines().map(Card::parse).collect::<Result<_, _>>()?;
+    let mut card_count = vec![1; cards.len()];
 
     for i in 0..cards.len() {
         let matches = cards[i].matching_numbers().len();
@@ -135,14 +87,16 @@ fn part2(input: &str) -> usize {
             card_count[j] += card_count[i];
         }
     }
-    card_count.into_iter().sum()
+    Ok(card_count.into_iter().sum())
 }
 
-fn main() {
+fn main() -> Result<(), String> {
     let input = include_str!("../input");
 
-    println!("Part 1 : {}", part1(input));
-    println!("Part 2 : {}", part2(input));
+    println!("Part 1 : {}", part1(input)?);
+    println!("Part 2 : {}", part2(input)?);
+
+    Ok(())
 }
 
 #[cfg(test)]
@@ -161,14 +115,14 @@ mod tests {
             Card 6: 31 18 13 56 72 | 74 77 10 23 35 67 36 11
         "};
 
-        assert_eq!(part1(input), 13);
+        assert_eq!(part1(input).unwrap(), 13);
     }
 
     #[test]
     fn parse_card() {
         let input = "Card   1: 41 48 83  6 17 | 83 86  6 31 17  9 48 53";
         assert_eq!(
-            Card::parse(input),
+            Card::parse(input).unwrap(),
             Card {
                 id: 1,
                 winning_numbers: vec![41, 48, 83, 6, 17],
@@ -188,6 +142,6 @@ mod tests {
             Card 6: 31 18 13 56 72 | 74 77 10 23 35 67 36 11
         "};
 
-        assert_eq!(part2(input), 30);
+        assert_eq!(part2(input).unwrap(), 30);
     }
 }
