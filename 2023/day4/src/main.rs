@@ -1,4 +1,5 @@
 use std::cmp::min;
+use std::str::FromStr;
 
 use nom::{
     bytes::complete::tag,
@@ -16,8 +17,10 @@ struct Card {
     have_numbers: Vec<usize>,
 }
 
-impl Card {
-    fn parse(input: &str) -> Result<Self, String> {
+impl FromStr for Card {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         fn number(i: &str) -> IResult<&str, usize> {
             map_res(digit1, str::parse)(i)
         }
@@ -41,7 +44,7 @@ impl Card {
         let mut card = separated_pair(card_info, many1(char(' ')), numbers);
 
         let (rest, (card_id, (winning_numbers, have_numbers))) =
-            card(input).finish().map_err(|e| e.to_string())?;
+            card(s).finish().map_err(|e| e.to_string())?;
 
         assert!(rest.is_empty());
 
@@ -51,7 +54,9 @@ impl Card {
             have_numbers,
         })
     }
+}
 
+impl Card {
     fn matching_numbers(&self) -> Vec<usize> {
         self.have_numbers
             .iter()
@@ -73,12 +78,15 @@ impl Card {
 fn part1(input: &str) -> Result<usize, String> {
     input
         .lines()
-        .map(Card::parse)
+        .map(str::parse::<Card>)
         .try_fold(0, |accum, card| Ok(accum + card?.value()))
 }
 
 fn part2(input: &str) -> Result<usize, String> {
-    let cards: Vec<Card> = input.lines().map(Card::parse).collect::<Result<_, _>>()?;
+    let cards: Vec<Card> = input
+        .lines()
+        .map(str::parse::<Card>)
+        .collect::<Result<_, _>>()?;
     let mut card_count = vec![1; cards.len()];
 
     for i in 0..cards.len() {
@@ -122,7 +130,7 @@ mod tests {
     fn parse_card() {
         let input = "Card   1: 41 48 83  6 17 | 83 86  6 31 17  9 48 53";
         assert_eq!(
-            Card::parse(input).unwrap(),
+            input.parse::<Card>().unwrap(),
             Card {
                 id: 1,
                 winning_numbers: vec![41, 48, 83, 6, 17],
