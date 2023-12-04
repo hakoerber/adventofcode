@@ -18,16 +18,18 @@ mod parser {
     use nom::{
         branch::alt,
         bytes::complete::take_while1,
-        character::complete::{char, digit1},
+        character::complete::{char, satisfy},
         combinator::map,
-        multi::many_m_n,
+        multi::count,
         sequence::preceded,
         IResult,
     };
 
     pub fn double_digit_number(i: &str) -> IResult<&str, usize> {
-        let single_digit = preceded(char(' '), many_m_n(1, 1, digit1));
-        let double_digit = many_m_n(1, 1, digit1);
+        let digit = satisfy(|c| c.is_ascii_digit());
+
+        let single_digit = preceded(char(' '), count(&digit, 1));
+        let double_digit = count(&digit, 2);
 
         let digit = alt((single_digit, double_digit));
 
@@ -56,8 +58,10 @@ mod parser {
         #[test]
         fn parse_double_digit() {
             assert_eq!(double_digit_number("23").unwrap(), ("", 23));
+            assert_eq!(double_digit_number("234").unwrap(), ("4", 23));
+            assert_eq!(double_digit_number(" 234").unwrap(), ("34", 2));
             assert_eq!(double_digit_number(" 3").unwrap(), ("", 3));
-            assert_eq!(double_digit_number("3 ").unwrap(), (" ", 3));
+            assert_eq!(double_digit_number(" 3 ").unwrap(), (" ", 3));
             assert!(double_digit_number("  3").is_err());
         }
 
