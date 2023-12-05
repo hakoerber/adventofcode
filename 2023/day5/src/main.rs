@@ -109,6 +109,15 @@ impl Map {
             None
         }
     }
+
+    fn map_reverse(&self, value: usize) -> Option<usize> {
+        if self.destination_range.contains(&value) {
+            let index = value - self.destination_range.start;
+            Some(self.source_range.clone().nth(index).unwrap())
+        } else {
+            None
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -142,6 +151,15 @@ impl MapList {
         }
         value
     }
+
+    fn map_reverse(&self, value: usize) -> usize {
+        for map in &self.maps {
+            if let Some(mapped_value) = map.map_reverse(value) {
+                return mapped_value;
+            }
+        }
+        value
+    }
 }
 
 fn part1(input: &str) -> Result<usize, String> {
@@ -169,29 +187,60 @@ fn part2(input: &str) -> Result<usize, String> {
         println!("parsing rest found: {rest}");
         panic!();
     }
-    let lowest_location = almanac
-        .seeds
-        .0
-        .into_par_iter()
-        .map(|seed_range| {
-            println!("{seed_range:?}");
-            // let seeds = seed_range.collect::<Vec<usize>>();
-            let result = seed_range
-                .clone()
-                .map(|seed| {
-                    let mut mapped_value = seed;
-                    for map_list in &almanac.map_lists {
-                        mapped_value = map_list.map(mapped_value);
-                    }
-                    mapped_value
-                })
-                .min()
-                .unwrap();
-            println!("{seed_range:?} => {result}");
-            result
-        })
-        .min()
-        .unwrap();
+
+    #[derive(PartialEq, Eq)]
+    #[allow(dead_code)]
+    enum Approach {
+        Reverse,
+        BruteForce,
+    }
+
+    let approach = Approach::BruteForce;
+
+    let lowest_location = match approach {
+        Approach::Reverse => {
+            let mut i = 0;
+            loop {
+                let mut reverse_val = i;
+                for map_list in almanac.map_lists.iter().rev() {
+                    reverse_val = map_list.map_reverse(reverse_val);
+                }
+                if almanac
+                    .seeds
+                    .0
+                    .iter()
+                    .any(|seed| seed.contains(&reverse_val))
+                {
+                    break i;
+                }
+                i += 1;
+            }
+        }
+        Approach::BruteForce => almanac
+            .seeds
+            .0
+            .into_par_iter()
+            .map(|seed_range| {
+                println!("{seed_range:?}");
+                // let seeds = seed_range.collect::<Vec<usize>>();
+                let result = seed_range
+                    .clone()
+                    .map(|seed| {
+                        let mut mapped_value = seed;
+                        for map_list in &almanac.map_lists {
+                            mapped_value = map_list.map(mapped_value);
+                        }
+                        mapped_value
+                    })
+                    .min()
+                    .unwrap();
+                println!("{seed_range:?} => {result}");
+                result
+            })
+            .min()
+            .unwrap(),
+    };
+
     Ok(lowest_location)
 }
 
