@@ -1,4 +1,5 @@
-use std::ops::Range;
+use std::cmp::{max, min};
+use std::{ops::Range, str::FromStr};
 
 use nom::{
     bytes::complete::{tag, take_until},
@@ -9,6 +10,34 @@ use nom::{
     IResult,
 };
 use rayon::prelude::*;
+
+#[derive(PartialEq, Eq)]
+#[allow(dead_code)]
+enum Approach {
+    Reverse,
+    BruteForce,
+    Ranges,
+}
+
+impl FromStr for Approach {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(match s {
+            "reverse" => Self::Reverse,
+            "bruteforce" => Self::BruteForce,
+            "ranges" => Self::Ranges,
+            _ => return Err("unknown approach"),
+        })
+    }
+}
+
+#[allow(dead_code)]
+impl Approach {
+    fn values() -> Vec<Self> {
+        vec![Self::Reverse, Self::BruteForce, Self::Ranges]
+    }
+}
 
 fn number(i: &str) -> IResult<&str, usize> {
     map(digit1, |f: &str| f.parse::<usize>().unwrap())(i)
@@ -181,23 +210,75 @@ fn part1(input: &str) -> Result<usize, String> {
     Ok(lowest_location)
 }
 
-fn part2(input: &str) -> Result<usize, String> {
+fn part2(input: &str, approach: Approach) -> Result<usize, String> {
     let (rest, almanac) = Almanac::<SeedRanges>::parse(input).map_err(|e| e.to_string())?;
     if !rest.is_empty() {
         println!("parsing rest found: {rest}");
         panic!();
     }
 
-    #[derive(PartialEq, Eq)]
-    #[allow(dead_code)]
-    enum Approach {
-        Reverse,
-        BruteForce,
-    }
-
-    let approach = Approach::BruteForce;
-
     let lowest_location = match approach {
+        Approach::Ranges => {
+            let current_ranges = almanac.seeds.0;
+
+            // Why the bool? So we mark ranges that we have already mapped, as we must not map them again
+            // in the same MapList
+            //
+            // I guess this could also be done using recusion, only recursing deeper for non-mapped ranges.
+            let mut current_ranges: Vec<(Range<usize>, bool)> = current_ranges
+                .into_iter()
+                .map(|range| (range, false))
+                .collect();
+
+            for map_list in almanac.map_lists.into_iter() {
+                // Mark all ranges as unmapped again
+                for i in 0..current_ranges.len() {
+                    current_ranges[i].1 = false;
+                }
+                for map in map_list.maps {
+                    for i in 0..current_ranges.len() {
+                        if current_ranges[i].1 {
+                            continue;
+                        }
+
+                        if current_ranges[i].0.end <= map.source_range.start {
+                            // does not overlap, nothing to do
+                            continue;
+                        }
+                        if current_ranges[i].0.start >= map.source_range.end {
+                            // does not overlap, nothing to do
+                            continue;
+                        }
+
+                        let overlap_start = max(current_ranges[i].0.start, map.source_range.start);
+
+                        let overlap_end = min(current_ranges[i].0.end, map.source_range.end);
+
+                        let overlapping_range = (overlap_start + map.destination_range.start
+                            - map.source_range.start)
+                            ..(overlap_end + map.destination_range.start - map.source_range.start);
+
+                        assert!(!overlapping_range.is_empty());
+
+                        let range_before = current_ranges[i].0.start..overlap_start;
+                        let range_after = overlap_end..current_ranges[i].0.end;
+
+                        if !range_before.is_empty() {
+                            current_ranges.push((range_before, false));
+                        }
+                        if !range_after.is_empty() {
+                            current_ranges.push((range_after, false));
+                        }
+                        current_ranges[i] = (overlapping_range, true);
+                    }
+                }
+            }
+            current_ranges
+                .into_iter()
+                .map(|range| range.0.start)
+                .min()
+                .unwrap()
+        }
         Approach::Reverse => {
             let mut i = 0;
             loop {
@@ -247,8 +328,18 @@ fn part2(input: &str) -> Result<usize, String> {
 fn main() -> Result<(), String> {
     let input = include_str!("../input");
 
-    println!("Part 1 : {}", part1(input)?);
-    println!("Part 2 : {}", part2(input)?);
+    let args = std::env::args().skip(1).collect::<Vec<String>>();
+    let part = args[0].parse::<usize>().unwrap();
+
+    if part == 1 {
+        println!("Part 1 : {}", part1(input)?);
+    } else if part == 2 {
+        let approach = args[1].parse()?;
+
+        println!("Part 2 : {}", part2(input, approach)?);
+    } else {
+        panic!("unknown part")
+    }
 
     Ok(())
 }
@@ -366,6 +457,8 @@ mod tests {
             56 93 4
         "};
 
-        assert_eq!(part2(&input).unwrap(), 46);
+        for approach in Approach::values() {
+            assert_eq!(part2(&input, approach).unwrap(), 46);
+        }
     }
 }
