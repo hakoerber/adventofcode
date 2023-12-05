@@ -221,38 +221,57 @@ fn part2(input: &str, approach: Approach) -> Result<usize, String> {
         Approach::Ranges => {
             let current_ranges = almanac.seeds.0;
 
-            // Why the bool? So we mark ranges that we have already mapped, as we must not map them again
-            // in the same MapList
-            //
-            // I guess this could also be done using recusion, only recursing deeper for non-mapped ranges.
-            let mut current_ranges: Vec<(Range<usize>, bool)> = current_ranges
+            // As each range can be partially mapped, the mapped ranges need to be marked properly. They
+            // are skipped on further mappings, as mappings are only done *once* per block (they are not
+            // iterative). Only unmapped ranges are mapped.
+            #[derive(PartialEq, Eq)]
+            enum State {
+                Unmapped,
+                Mapped,
+            }
+
+            #[derive(PartialEq, Eq)]
+            struct RangeToMap {
+                range: Range<usize>,
+                state: State,
+            }
+
+            let mut current_ranges: Vec<RangeToMap> = current_ranges
                 .into_iter()
-                .map(|range| (range, false))
+                .map(|range| RangeToMap {
+                    range,
+                    state: State::Unmapped,
+                })
                 .collect();
 
+            // There is one potential optimization that could be done after each mapping: Merge overlapping or adjacent ranges.
+            // This would cut down on the number of ranges. For the puzzle input, it does not make sense, as the number of ranges
+            // stays manageable (exactly 100 for my input). As number may grow by as much as three times for each mapping line,
+            // this optimization would become prudent for longer input with many half-matching ranges.
             for map_list in almanac.map_lists.into_iter() {
                 // Mark all ranges as unmapped again
-                for i in 0..current_ranges.len() {
-                    current_ranges[i].1 = false;
+                for range in &mut current_ranges {
+                    range.state = State::Unmapped;
                 }
                 for map in map_list.maps {
                     for i in 0..current_ranges.len() {
-                        if current_ranges[i].1 {
+                        if current_ranges[i].state == State::Mapped {
                             continue;
                         }
 
-                        if current_ranges[i].0.end <= map.source_range.start {
+                        if current_ranges[i].range.end <= map.source_range.start {
                             // does not overlap, nothing to do
                             continue;
                         }
-                        if current_ranges[i].0.start >= map.source_range.end {
+                        if current_ranges[i].range.start >= map.source_range.end {
                             // does not overlap, nothing to do
                             continue;
                         }
 
-                        let overlap_start = max(current_ranges[i].0.start, map.source_range.start);
+                        let overlap_start =
+                            max(current_ranges[i].range.start, map.source_range.start);
 
-                        let overlap_end = min(current_ranges[i].0.end, map.source_range.end);
+                        let overlap_end = min(current_ranges[i].range.end, map.source_range.end);
 
                         let overlapping_range = (overlap_start + map.destination_range.start
                             - map.source_range.start)
@@ -260,22 +279,31 @@ fn part2(input: &str, approach: Approach) -> Result<usize, String> {
 
                         assert!(!overlapping_range.is_empty());
 
-                        let range_before = current_ranges[i].0.start..overlap_start;
-                        let range_after = overlap_end..current_ranges[i].0.end;
+                        let range_before = current_ranges[i].range.start..overlap_start;
+                        let range_after = overlap_end..current_ranges[i].range.end;
 
                         if !range_before.is_empty() {
-                            current_ranges.push((range_before, false));
+                            current_ranges.push(RangeToMap {
+                                range: range_before,
+                                state: State::Unmapped,
+                            });
                         }
                         if !range_after.is_empty() {
-                            current_ranges.push((range_after, false));
+                            current_ranges.push(RangeToMap {
+                                range: range_after,
+                                state: State::Unmapped,
+                            });
                         }
-                        current_ranges[i] = (overlapping_range, true);
+                        current_ranges[i] = RangeToMap {
+                            range: overlapping_range,
+                            state: State::Mapped,
+                        };
                     }
                 }
             }
             current_ranges
                 .into_iter()
-                .map(|range| range.0.start)
+                .map(|range| range.range.start)
                 .min()
                 .unwrap()
         }
