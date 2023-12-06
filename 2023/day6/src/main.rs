@@ -12,7 +12,8 @@ use std::str::FromStr;
 #[allow(dead_code)]
 enum Approach {
     BruteForce,
-    Math,
+    QuadraticFormula,
+    RangeReduction,
 }
 
 impl FromStr for Approach {
@@ -21,7 +22,8 @@ impl FromStr for Approach {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(match s {
             "bruteforce" => Self::BruteForce,
-            "math" => Self::Math,
+            "quadraticformula" => Self::QuadraticFormula,
+            "rangereduction" => Self::RangeReduction,
             _ => return Err("unknown approach"),
         })
     }
@@ -30,7 +32,11 @@ impl FromStr for Approach {
 #[allow(dead_code)]
 impl Approach {
     fn values() -> Vec<Self> {
-        vec![Self::BruteForce, Self::Math]
+        vec![
+            Self::BruteForce,
+            Self::QuadraticFormula,
+            Self::RangeReduction,
+        ]
     }
 }
 
@@ -61,7 +67,7 @@ impl Race {
                 })
                 .collect::<Vec<_>>()
                 .len(),
-            _ => {
+            Approach::QuadraticFormula => {
                 // the races form a quadratic function:
                 //
                 // T = the total time of the race
@@ -114,6 +120,33 @@ impl Race {
                     (x2.ceil() as usize - 1) - (x1.floor() as usize + 1) + 1
                 } else {
                     // No roots, there is no way for us to win the race.
+                    0
+                }
+            }
+            Approach::RangeReduction => {
+                let limit: isize = self.distance.try_into().unwrap();
+                let time: isize = self.time.try_into().unwrap();
+                let f = |x: isize| -x * x + time * x;
+
+                // we know that charging for 0 seconds always loses, as the result will be 0
+                let lower_bound = 0;
+                assert!(f(lower_bound) == 0);
+
+                // we know that charging for the hold time of the game always loses, as the
+                // result will be 0
+                let upper_bound = self.time.try_into().unwrap();
+                assert!(f(upper_bound) == 0);
+
+                // linear search, this could be optimized to a binary search
+                let first_win = (lower_bound..upper_bound).find(|x| f(*x) > limit);
+                let last_win = (lower_bound..upper_bound).rev().find(|x| f(*x) > limit);
+
+                // merge the options into one,
+                let wins = first_win.zip(last_win);
+
+                if let Some((first, last)) = wins {
+                    (last - first + 1).try_into().unwrap()
+                } else {
                     0
                 }
             }
