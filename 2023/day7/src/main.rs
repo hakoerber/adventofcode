@@ -33,7 +33,7 @@ enum HandType {
 
 trait Parse {
     type Out;
-    fn parse(s: &str) -> IResult<&str, Box<Self::Out>>;
+    fn parse(s: &str) -> IResult<&str, Self::Out>;
 }
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
@@ -72,11 +72,11 @@ enum CardWithJoker {
 
 impl Parse for CardWithoutJoker {
     type Out = Self;
-    fn parse(s: &str) -> IResult<&str, Box<Self>> {
+    fn parse(s: &str) -> IResult<&str, Self> {
         let (rest, c) = anychar(s)?;
         Ok((
             rest,
-            Box::new(match c {
+            match c {
                 '2' => Self::Two,
                 '3' => Self::Three,
                 '4' => Self::Four,
@@ -96,18 +96,18 @@ impl Parse for CardWithoutJoker {
                         nom::error::ErrorKind::Char,
                     )))
                 }
-            }),
+            },
         ))
     }
 }
 
 impl Parse for CardWithJoker {
     type Out = Self;
-    fn parse(s: &str) -> IResult<&str, Box<Self>> {
+    fn parse(s: &str) -> IResult<&str, Self> {
         let (rest, c) = anychar(s)?;
         Ok((
             rest,
-            Box::new(match c {
+            match c {
                 '2' => Self::Two,
                 '3' => Self::Three,
                 '4' => Self::Four,
@@ -127,7 +127,7 @@ impl Parse for CardWithJoker {
                         nom::error::ErrorKind::Char,
                     )))
                 }
-            }),
+            },
         ))
     }
 }
@@ -191,7 +191,6 @@ trait ParseHand {
             Box::new(Self::Out::from_vec(
                 cards
                     .into_iter()
-                    .map(|card| *card)
                     .collect::<Vec<<Self::Out as Hand>::CardType>>(),
             )),
         ))
