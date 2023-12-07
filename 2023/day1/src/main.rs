@@ -176,7 +176,7 @@ mod part2 {
 }
 
 fn main() {
-    let input = std::fs::read_to_string("./input").unwrap();
+    let input = include_str!("../input");
 
     let results: [u32; 2] = [part1::approaches(), part2::approaches()].map(|approaches| {
         input

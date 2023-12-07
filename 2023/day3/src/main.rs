@@ -156,7 +156,7 @@ fn part2(input: &str) -> usize {
 }
 
 fn main() {
-    let input = std::fs::read_to_string("./input").unwrap();
+    let input = include_str!("../input");
 
     println!("Part 1 : {}", part1(&input));
     println!("Part 2 : {}", part2(&input));

@@ -206,7 +206,7 @@ fn limits() -> HashMap<Color, u32> {
 }
 
 fn main() -> Result<(), String> {
-    let input = std::fs::read_to_string("./input").unwrap();
+    let input = include_str!("../input");
 
     match parse_input(&input) {
         Ok(input) => {
@@ -224,7 +224,7 @@ fn main() -> Result<(), String> {
                 nom::Needed::Size(n) => eprintln!("needed {n} more bytes"),
             },
             NomErr::Error(e) | NomErr::Failure(e) => {
-                eprintln!("{}", nom::error::convert_error(input.as_str(), e))
+                eprintln!("{}", nom::error::convert_error(input, e))
             }
         },
     };
@@ -261,7 +261,7 @@ mod tests {
 
     #[test]
     fn example_01() {
-        let input = std::fs::read_to_string("./example_01").unwrap();
+        let input = include_str!("../example_01");
         assert_eq!(
             count_possible_games(&parse_input(&input).unwrap(), &super::limits()).unwrap(),
             8
@@ -270,7 +270,7 @@ mod tests {
 
     #[test]
     fn example_02() {
-        let input = std::fs::read_to_string("./example_02").unwrap();
+        let input = include_str!("../example_02");
         assert_eq!(
             minimum_cube_powered(&parse_input(&input).unwrap()).unwrap(),
             2286
