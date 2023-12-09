@@ -35,6 +35,10 @@ run() {
   echo "day8"
   ./day8/target/release/day8 1
   ./day8/target/release/day8 2
+
+  echo "day9"
+  ./day9/target/release/day9 1
+  ./day9/target/release/day9 2
 }
 
 time run
