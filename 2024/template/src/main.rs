@@ -16,8 +16,11 @@ fn part_2(input: &Input) -> usize {
 fn main() {
     let input = parse(&std::fs::read_to_string("input").expect("input could not be read"));
 
-    println!("part 1: {}", part_1(&input));
-    println!("part 2: {}", part_2(&input));
+    match std::env::args().nth(1) {
+        Some(s) if s == "1" => println!("part 1: {}", part_1(&input)),
+        Some(s) if s == "2" => println!("part 2: {}", part_2(&input)),
+        _ => panic!("specify part"),
+    }
 }
 
 #[cfg(test)]
