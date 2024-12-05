@@ -1,3 +1,7 @@
+mod helpers;
+mod output;
+use output::Output;
+
 #[derive(Debug, Clone)]
 struct Input {}
 
@@ -5,12 +9,12 @@ fn parse(input: &str) -> Input {
     Input {}
 }
 
-fn part_1(input: &Input) -> usize {
-    0
+fn part_1(input: &Input) -> Output {
+    0.into()
 }
 
-fn part_2(input: &Input) -> usize {
-    0
+fn part_2(input: &Input) -> Output {
+    0.into()
 }
 
 fn main() {
@@ -25,8 +29,8 @@ fn main() {
 
 #[cfg(test)]
 mod test {
-    const EXAMPLE_RESULT_PART_1: usize = 1;
-    const EXAMPLE_RESULT_PART_2: usize = 1;
+    const EXAMPLE_RESULT_PART_1: Output = Output::Int(1);
+    const EXAMPLE_RESULT_PART_2: Output = Output::Int(1);
 
     use super::*;
 
