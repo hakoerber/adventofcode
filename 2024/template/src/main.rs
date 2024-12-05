@@ -1,4 +1,4 @@
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 struct Input {}
 
 fn parse(input: &str) -> Input {
