@@ -40,11 +40,11 @@ mod test {
 
     #[test]
     fn example_part_1() {
-        assert_eq!(part_1(&example_input()), EXAMPLE_RESULT_PART_1)
+        assert_eq!(part_1(&example_input()), EXAMPLE_RESULT_PART_1);
     }
 
     #[test]
     fn example_part_2() {
-        assert_eq!(part_2(&example_input()), EXAMPLE_RESULT_PART_2)
+        assert_eq!(part_2(&example_input()), EXAMPLE_RESULT_PART_2);
     }
 }
