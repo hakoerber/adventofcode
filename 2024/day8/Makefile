@@ -9,7 +9,7 @@ test:
 
 .PHONY: lint
 lint:
-	cargo clippy --color=always
+	cargo clippy --color=always 2>&1
 
 .PHONY: fmt
 fmt:
@@ -19,10 +19,5 @@ fmt:
 
 .PHONY: run
 run:
-	@cargo run --quiet -- 1
-	@cargo run --quiet -- 2
-
-.PHONY: run-release
-run-release:
 	@cargo run --release --quiet -- 1
 	@cargo run --release --quiet -- 2

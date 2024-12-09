@@ -1,14 +1,10 @@
 mod helpers;
 mod output;
-use std::collections::HashMap;
 
+use helpers::{Grid, Point};
 use output::Output;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct Point {
-    x: isize,
-    y: isize,
-}
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Location {
@@ -16,55 +12,53 @@ enum Location {
     Antenna(char),
 }
 
+impl From<char> for Location {
+    fn from(value: char) -> Self {
+        match value {
+            'a'..='z' | 'A'..='Z' | '0'..='9' => Self::Antenna(value),
+            '.' => Self::Empty,
+            _ => panic!("invalid input"),
+        }
+    }
+}
+
+impl std::fmt::Display for Location {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Empty => write!(f, "."),
+            Self::Antenna(c) => write!(f, "{c}"),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 struct Input {
-    grid: Vec<Vec<Location>>,
+    grid: Grid<Location>,
 }
 
 fn parse(input: &str) -> Input {
     Input {
-        grid: input
-            .lines()
-            .map(|line| {
-                line.chars()
-                    .map(|c| match c {
-                        'a'..='z' | 'A'..='Z' | '0'..='9' => Location::Antenna(c),
-                        '.' => Location::Empty,
-                        _ => panic!("invalid input"),
-                    })
-                    .collect()
-            })
-            .collect(),
+        grid: Grid::from_str(input),
     }
 }
 
-fn part_1(input: &Input) -> Output {
+fn get_antinodes_at_mul(
+    grid: &Grid<Location>,
+    range: &(impl Iterator<Item = isize> + Clone),
+) -> Vec<Point> {
     let mut locs: HashMap<char, Vec<Point>> = HashMap::new();
 
-    for (y, line) in input.grid.iter().enumerate() {
-        for (x, loc) in line.iter().enumerate() {
-            if let Location::Antenna(c) = loc {
-                let point = Point {
-                    x: x as isize,
-                    y: y as isize,
-                };
-                locs.entry(*c)
-                    .and_modify(|v| v.push(point))
-                    .or_insert(vec![point]);
-            }
+    for (point, loc) in grid.iter() {
+        if let Location::Antenna(c) = loc {
+            locs.entry(c)
+                .and_modify(|v| v.push(point.clone()))
+                .or_insert_with(|| vec![point.clone()]);
         }
     }
 
     let mut locs_with_antenna: Vec<Point> = Vec::new();
 
     let mut record = |point: Point| {
-        if point.x < 0
-            || point.y < 0
-            || point.y >= input.grid.len() as isize
-            || point.x >= input.grid[0].len() as isize
-        {
-            return;
-        }
         if !locs_with_antenna.iter().any(|l| *l == point) {
             locs_with_antenna.push(point);
         };
@@ -74,223 +68,47 @@ fn part_1(input: &Input) -> Output {
         let locations = locs.get(antenna_type).unwrap();
         for i in 0..locations.len() {
             for j in (i + 1)..locations.len() {
-                let l1 = locations[i];
-                let l2 = locations[j];
+                let l1 = &locations[i];
+                let l2 = &locations[j];
 
-                let diff_x = l1.x.abs_diff(l2.x) as isize;
-                let diff_y = l1.y.abs_diff(l2.y) as isize;
+                let v = l1.vector_to(&l2);
 
-                match (l1.x < l2.x, l1.y < l2.y) {
-                    // 1
-                    //   2
-                    (true, true) => {
-                        let antinode1 = Point {
-                            x: l2.x + diff_x,
-                            y: l2.y + diff_y,
-                        };
-                        record(antinode1);
-
-                        let antinode2 = Point {
-                            x: l1.x - diff_x,
-                            y: l1.y - diff_y,
-                        };
-                        record(antinode2);
+                for i in range.clone() {
+                    if let Some(p) = l1.add(v.rev().mul(i)) {
+                        if !grid.contains(&p) {
+                            break;
+                        }
+                        record(p);
+                    } else {
+                        break;
                     }
-                    //   2
-                    // 1
-                    (true, false) => {
-                        let antinode1 = Point {
-                            x: l2.x + diff_x,
-                            y: l2.y - diff_y,
-                        };
-                        record(antinode1);
+                }
 
-                        let antinode2 = Point {
-                            x: l1.x - diff_x,
-                            y: l1.y + diff_y,
-                        };
-                        record(antinode2);
-                    }
-                    //   1
-                    // 2
-                    (false, true) => {
-                        let antinode1 = Point {
-                            x: l2.x - diff_x,
-                            y: l2.y + diff_y,
-                        };
-                        record(antinode1);
-
-                        let antinode2 = Point {
-                            x: l1.x + diff_x,
-                            y: l1.y - diff_y,
-                        };
-                        record(antinode2);
-                    }
-                    // 2
-                    //   1
-                    (false, false) => {
-                        let antinode1 = Point {
-                            x: l2.x - diff_x,
-                            y: l2.y - diff_y,
-                        };
-                        record(antinode1);
-
-                        let antinode2 = Point {
-                            x: l1.x + diff_x,
-                            y: l1.y + diff_y,
-                        };
-                        record(antinode2);
+                for i in range.clone() {
+                    if let Some(p) = l2.add(v.mul(i)) {
+                        if !grid.contains(&p) {
+                            break;
+                        }
+                        record(p);
+                    } else {
+                        break;
                     }
                 }
             }
         }
     }
 
-    locs_with_antenna.len().into()
+    locs_with_antenna
+}
+
+fn part_1(input: &Input) -> Output {
+    get_antinodes_at_mul(&input.grid, &std::iter::once(1))
+        .len()
+        .into()
 }
 
 fn part_2(input: &Input) -> Output {
-    let mut locs: HashMap<char, Vec<Point>> = HashMap::new();
-
-    for (y, line) in input.grid.iter().enumerate() {
-        for (x, loc) in line.iter().enumerate() {
-            if let Location::Antenna(c) = loc {
-                let point = Point {
-                    x: x as isize,
-                    y: y as isize,
-                };
-                locs.entry(*c)
-                    .and_modify(|v| v.push(point))
-                    .or_insert(vec![point]);
-            }
-        }
-    }
-
-    let mut locs_with_antenna: Vec<Point> = Vec::new();
-
-    let mut record = |point: Point| -> bool {
-        if point.x < 0
-            || point.y < 0
-            || point.y >= input.grid.len() as isize
-            || point.x >= input.grid[0].len() as isize
-        {
-            return false;
-        }
-        if !locs_with_antenna.iter().any(|l| *l == point) {
-            locs_with_antenna.push(point);
-        };
-        true
-    };
-
-    for antenna_type in locs.keys() {
-        let locations = locs.get(antenna_type).unwrap();
-        for i in 0..locations.len() {
-            for j in (i + 1)..locations.len() {
-                let l1 = locations[i];
-                let l2 = locations[j];
-
-                let diff_x = l1.x.abs_diff(l2.x) as isize;
-                let diff_y = l1.y.abs_diff(l2.y) as isize;
-
-                match (l1.x < l2.x, l1.y < l2.y) {
-                    // 1
-                    //   2
-                    (true, true) => {
-                        for i in 0.. {
-                            let antinode1 = Point {
-                                x: l2.x + i * diff_x,
-                                y: l2.y + i * diff_y,
-                            };
-                            if !record(antinode1) {
-                                break;
-                            }
-                        }
-
-                        for i in 0.. {
-                            let antinode1 = Point {
-                                x: l2.x - i * diff_x,
-                                y: l2.y - i * diff_y,
-                            };
-                            if !record(antinode1) {
-                                break;
-                            }
-                        }
-                    }
-                    //   2
-                    // 1
-                    (true, false) => {
-                        for i in 0.. {
-                            let antinode1 = Point {
-                                x: l2.x + i * diff_x,
-                                y: l2.y - i * diff_y,
-                            };
-                            if !record(antinode1) {
-                                break;
-                            }
-                        }
-
-                        for i in 0.. {
-                            let antinode1 = Point {
-                                x: l2.x - i * diff_x,
-                                y: l2.y + i * diff_y,
-                            };
-                            if !record(antinode1) {
-                                break;
-                            }
-                        }
-                    }
-                    //   1
-                    // 2
-                    (false, true) => {
-                        for i in 0.. {
-                            let antinode1 = Point {
-                                x: l2.x - i * diff_x,
-                                y: l2.y + i * diff_y,
-                            };
-                            if !record(antinode1) {
-                                break;
-                            }
-                        }
-
-                        for i in 0.. {
-                            let antinode1 = Point {
-                                x: l2.x + i * diff_x,
-                                y: l2.y - i * diff_y,
-                            };
-                            if !record(antinode1) {
-                                break;
-                            }
-                        }
-                    }
-                    // 2
-                    //   1
-                    (false, false) => {
-                        for i in 0.. {
-                            let antinode1 = Point {
-                                x: l2.x - i * diff_x,
-                                y: l2.y - i * diff_y,
-                            };
-                            if !record(antinode1) {
-                                break;
-                            }
-                        }
-
-                        for i in 0.. {
-                            let antinode1 = Point {
-                                x: l2.x + i * diff_x,
-                                y: l2.y + i * diff_y,
-                            };
-                            if !record(antinode1) {
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    locs_with_antenna.len().into()
+    get_antinodes_at_mul(&input.grid, &(0..)).len().into()
 }
 
 fn main() {
