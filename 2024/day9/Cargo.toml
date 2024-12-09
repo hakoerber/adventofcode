@@ -1,0 +1,12 @@
+[package]
+name = "aoc"
+version = "0.1.0"
+edition = "2021"
+
+[lints.clippy]
+pedantic = { level = "deny", priority = -1 }
+nursery = { level = "deny", priority = -1 }
+
+redundant_pub_crate = { level = "allow" }
+redundant_else = { level = "allow" }
+too_many_lines = { level = "allow" }
