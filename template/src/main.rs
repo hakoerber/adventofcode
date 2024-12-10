@@ -6,14 +6,17 @@ use output::Output;
 struct Input {}
 
 fn parse(input: &str) -> Input {
+    let _x = input;
     Input {}
 }
 
 fn part_1(input: &Input) -> Output {
+    let _x = input;
     0.into()
 }
 
 fn part_2(input: &Input) -> Output {
+    let _x = input;
     0.into()
 }
 
