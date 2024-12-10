@@ -1,9 +1,7 @@
 mod helpers;
 mod output;
 
-use std::fmt::Display;
-
-use helpers::{Grid, Point, Vector};
+use helpers::{Grid, Path, Point};
 use output::Output;
 
 #[derive(Debug, Clone)]
@@ -13,43 +11,27 @@ struct Input {
 
 fn parse(input: &str) -> Input {
     Input {
-        grid: Grid::from_str_with(input, |c| u8::try_from(c.to_digit(10).unwrap()).unwrap()),
-    }
-}
-
-struct Path(Vec<Point>);
-
-impl Display for Path {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for (i, point) in self.0.iter().enumerate() {
-            write!(f, "({},{})", point.y, point.x)?;
-            if i != self.0.len() - 1 {
-                write!(f, " -> ")?;
-            }
-        }
-        Ok(())
+        grid: Grid::from_str_as_digits(input),
     }
 }
 
 // find all paths from that point, including the point itself
-fn path_from(grid: &Grid<u8>, point: &Point, value: u8) -> Vec<Path> {
+fn path_from(grid: &Grid<u8>, point: &Point, value: u8) -> impl Iterator<Item = Path> {
     if value == 9 {
         vec![Path(vec![point.clone()])]
     } else {
         let mut next_paths: Vec<Path> = Vec::new();
-        for (x, y) in [(1, 0), (-1, 0), (0, 1), (0, -1)] {
-            if let Some(p) = point.add(&Vector { y, x }) {
-                if let Some(val) = grid.get(&p) {
-                    if *val == value + 1 {
-                        let mut paths = path_from(grid, &p, value + 1);
-                        paths.iter_mut().for_each(|v| v.0.insert(0, point.clone()));
-                        next_paths.append(&mut paths);
-                    }
-                }
+        for p in grid.neighbors_of(point) {
+            if *p.value == value + 1 {
+                next_paths.extend(path_from(grid, &p.point, value + 1).map(|mut path| {
+                    path.0.insert(0, point.clone());
+                    path
+                }));
             }
         }
         next_paths
     }
+    .into_iter()
 }
 
 fn trailheads(grid: &Grid<u8>) -> impl Iterator<Item = Point> + use<'_> {
@@ -61,9 +43,7 @@ fn part_1(input: &Input) -> Output {
     trailheads(&input.grid)
         .map(|trailhead| {
             helpers::unique(
-                path_from(&input.grid, &trailhead, 0)
-                    .into_iter()
-                    .map(|trail| trail.0.last().unwrap().clone()),
+                path_from(&input.grid, &trailhead, 0).map(|trail| trail.0.last().unwrap().clone()),
             )
             .len()
         })
@@ -73,12 +53,7 @@ fn part_1(input: &Input) -> Output {
 
 fn part_2(input: &Input) -> Output {
     trailheads(&input.grid)
-        .map(|trailhead| {
-            path_from(&input.grid, &trailhead, 0)
-                .into_iter()
-                .map(|trail| trail.0.last().unwrap().clone())
-                .len()
-        })
+        .map(|trailhead| path_from(&input.grid, &trailhead, 0).count())
         .sum::<usize>()
         .into()
 }

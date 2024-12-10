@@ -1,5 +1,7 @@
 #![allow(dead_code)]
 
+use std::fmt::Display;
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Point {
     pub y: usize,
@@ -41,6 +43,16 @@ impl Point {
             x: isize::try_from(p.x).unwrap() - isize::try_from(self.x).unwrap(),
             y: isize::try_from(p.y).unwrap() - isize::try_from(self.y).unwrap(),
         }
+    }
+
+    pub fn neighbors(&self) -> impl Iterator<Item = Self> {
+        let mut v = Vec::new();
+        for (x, y) in [(1, 0), (-1, 0), (0, 1), (0, -1)] {
+            if let Some(p) = self.add(&Vector { y, x }) {
+                v.push(p);
+            }
+        }
+        v.into_iter()
     }
 }
 
@@ -87,6 +99,21 @@ impl<T> Grid<T> {
             None
         }
     }
+
+    pub fn neighbors_of<'a>(&'a self, point: &Point) -> impl Iterator<Item = GridPoint<'a, T>> {
+        let mut v = Vec::new();
+        for point in point.neighbors() {
+            if let Some(value) = self.get(&point) {
+                v.push(GridPoint { value, point });
+            }
+        }
+        v.into_iter()
+    }
+}
+
+pub struct GridPoint<'a, T> {
+    pub value: &'a T,
+    pub point: Point,
 }
 
 impl<T> Grid<T>
@@ -119,6 +146,12 @@ impl<T> Grid<T> {
             .lines()
             .map(|line| line.chars().map(f).collect())
             .collect()
+    }
+}
+
+impl Grid<u8> {
+    pub fn from_str_as_digits(input: &str) -> Self {
+        Self::from_str_with(input, |c| u8::try_from(c.to_digit(10).unwrap()).unwrap())
     }
 }
 
@@ -169,6 +202,21 @@ impl<T> IntoIterator for Grid<T> {
 
     fn into_iter(self) -> Self::IntoIter {
         todo!()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Path(pub Vec<Point>);
+
+impl Display for Path {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for (i, point) in self.0.iter().enumerate() {
+            write!(f, "({},{})", point.y, point.x)?;
+            if i != self.0.len() - 1 {
+                write!(f, " -> ")?;
+            }
+        }
+        Ok(())
     }
 }
 
