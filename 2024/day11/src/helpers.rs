@@ -299,6 +299,10 @@ where
     })
 }
 
+pub fn number_of_digits(num: usize) -> u32 {
+    num.ilog10() + 1
+}
+
 pub fn unique<T>(v: impl Iterator<Item = T>) -> Vec<T>
 where
     T: PartialEq<T> + Clone,

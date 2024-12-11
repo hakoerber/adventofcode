@@ -5,6 +5,7 @@ files=(
     Makefile
     src/helpers.rs
     src/output.rs
+    src/main.rs
     update-template.sh
 )
 
