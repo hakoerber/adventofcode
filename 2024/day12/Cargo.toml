@@ -14,3 +14,4 @@ missing_const_for_fn = { level = "allow" }
 redundant_closure_for_method_calls = { level = "allow" }
 fallible_impl_from = { level = "allow" }
 option_if_let_else = { level = "allow" }
+cognitive_complexity = { level = "allow" }

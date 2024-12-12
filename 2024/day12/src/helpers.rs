@@ -8,6 +8,62 @@ pub struct Point {
     pub x: usize,
 }
 
+#[derive(Debug, Clone)]
+pub struct PointCloud(Vec<Point>);
+
+impl PointCloud {
+    pub fn from(v: Vec<Point>) -> Self {
+        Self(v)
+    }
+
+    pub fn area(&self) -> usize {
+        self.0.len()
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &Point> {
+        self.0.iter()
+    }
+
+    pub fn into_iter(self) -> impl Iterator<Item = Point> {
+        self.0.into_iter()
+    }
+
+    pub fn extend(&mut self, other: Self) {
+        self.0.extend(other.0);
+    }
+
+    pub fn contains(&self, point: &Point) -> bool {
+        self.0.iter().any(|p| p == point)
+    }
+
+    pub fn into_bool_grid(self) -> Grid<bool> {
+        let mut points = self.0;
+        points.sort();
+        let min_x = points.iter().map(|p| p.x).min().unwrap();
+        let min_y = points.iter().map(|p| p.y).min().unwrap();
+        let max_x = points.iter().map(|p| p.x).max().unwrap();
+        let max_y = points.iter().map(|p| p.y).max().unwrap();
+
+        let mut points = points.into_iter();
+        let mut next = points.next();
+        let mut v = Vec::new();
+        for y in min_y..=max_y {
+            for x in min_x..=max_x {
+                if next.as_ref().is_some_and(|p| *p == Point { y, x }) {
+                    v.push(true);
+                    next = points.next();
+                } else {
+                    v.push(false);
+                }
+            }
+        }
+        Grid {
+            inner: v,
+            width: max_x - min_x + 1,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Vector {
     pub y: isize,
@@ -46,11 +102,13 @@ impl Point {
     }
 
     pub fn neighbors(&self) -> impl Iterator<Item = Self> {
+        self.all_neighbors().flatten()
+    }
+
+    pub fn all_neighbors(&self) -> impl Iterator<Item = Option<Self>> {
         let mut v = Vec::new();
         for (x, y) in [(1, 0), (-1, 0), (0, 1), (0, -1)] {
-            if let Some(p) = self.add(&Vector { y, x }) {
-                v.push(p);
-            }
+            v.push(self.add(&Vector { y, x }));
         }
         v.into_iter()
     }
@@ -75,6 +133,42 @@ impl<T> std::iter::FromIterator<Vec<T>> for Grid<T> {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct GridRow<'a, T> {
+    pub cells: &'a [T],
+    pub y: usize,
+}
+
+impl<'a, T> GridRow<'a, T>
+where
+    T: Copy,
+{
+    pub fn points(&'a self) -> impl Iterator<Item = (Point, T)> + use<'a, T> {
+        self.cells
+            .iter()
+            .enumerate()
+            .map(|(x, cell)| (Point { y: self.y, x }, *cell))
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct GridCol<T> {
+    pub cells: Vec<T>,
+    pub x: usize,
+}
+
+impl<T> GridCol<T>
+where
+    T: Copy,
+{
+    pub fn points(&self) -> impl Iterator<Item = (Point, T)> + use<'_, T> {
+        self.cells
+            .iter()
+            .enumerate()
+            .map(|(y, cell)| (Point { y, x: self.x }, *cell))
+    }
+}
+
 impl<T> Grid<T> {
     pub fn width(&self) -> usize {
         self.width
@@ -91,8 +185,11 @@ impl<T> Grid<T> {
         self.inner.len() / self.width
     }
 
-    pub fn lines(&self) -> impl Iterator<Item = &[T]> {
-        self.inner.chunks(self.width)
+    pub fn rows(&self) -> impl Iterator<Item = GridRow<T>> {
+        self.inner
+            .chunks(self.width)
+            .enumerate()
+            .map(|(y, cells)| GridRow { cells, y })
     }
 
     pub fn contains(&self, point: &Point) -> bool {
@@ -123,6 +220,21 @@ impl<T> Grid<T> {
             }
         }
         v.into_iter()
+    }
+}
+
+impl<T> Display for Grid<T>
+where
+    T: Display,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for line in self.rows() {
+            for cell in line.cells {
+                write!(f, "{cell}")?;
+            }
+            writeln!(f)?;
+        }
+        Ok(())
     }
 }
 
@@ -160,6 +272,19 @@ where
             }
         }
         v.into_iter()
+    }
+
+    pub fn cols(&self) -> impl Iterator<Item = GridCol<T>> + use<'_, T> {
+        (0..self.width()).map(|x| GridCol {
+            x,
+            cells: self
+                .inner
+                .iter()
+                .skip(x)
+                .step_by(self.width())
+                .copied()
+                .collect(),
+        })
     }
 }
 
