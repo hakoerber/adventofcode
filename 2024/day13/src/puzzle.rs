@@ -1,22 +1,31 @@
-use crate::helpers::{whole_div, Point, Vector};
+use crate::helpers::{whole_div, Point};
 
 #[derive(Debug, Clone)]
 pub struct Machine {
     prize: Point,
-    button_a: Vector,
-    button_b: Vector,
+    button_a: (usize, usize),
+    button_b: (usize, usize),
 }
 
 impl Machine {
     fn winning_play(&self) -> Option<(usize, usize)> {
-        let (p_x, p_y) = (self.prize.x as isize, self.prize.y as isize);
-        let (a_x, a_y) = (self.button_a.x, self.button_a.y);
-        let (b_x, b_y) = (self.button_b.x, self.button_b.y);
+        let (p_x, p_y) = (
+            isize::try_from(self.prize.x).unwrap(),
+            isize::try_from(self.prize.y).unwrap(),
+        );
+        let (a_x, a_y) = (
+            isize::try_from(self.button_a.0).unwrap(),
+            isize::try_from(self.button_a.1).unwrap(),
+        );
+        let (b_x, b_y) = (
+            isize::try_from(self.button_b.0).unwrap(),
+            isize::try_from(self.button_b.1).unwrap(),
+        );
 
         let a = whole_div(p_y * b_x - p_x * b_y, a_y * b_x - a_x * b_y)?;
         let b = whole_div(p_x - (a * a_x), b_x)?;
 
-        Some((a as usize, b as usize))
+        Some((usize::try_from(a).unwrap(), usize::try_from(b).unwrap()))
     }
 }
 
@@ -39,14 +48,14 @@ pub fn parse(input: &str) -> Input {
                         assert_eq!(fields[0], "Prize:");
                         Point {
                             x: fields[1]
-                                .split_once("=")
+                                .split_once('=')
                                 .unwrap()
                                 .1
                                 .trim_end_matches(',')
                                 .parse::<usize>()
                                 .unwrap(),
                             y: fields[2]
-                                .split_once("=")
+                                .split_once('=')
                                 .unwrap()
                                 .1
                                 .parse::<usize>()
@@ -57,41 +66,41 @@ pub fn parse(input: &str) -> Input {
                         let fields: Vec<&str> = lines[0].split_whitespace().collect();
                         assert_eq!(fields.len(), 4);
                         assert_eq!((fields[0], fields[1]), ("Button", "A:"));
-                        Vector {
-                            x: fields[2]
-                                .split_once("+")
+                        (
+                            fields[2]
+                                .split_once('+')
                                 .unwrap()
                                 .1
                                 .trim_end_matches(',')
-                                .parse::<isize>()
+                                .parse::<usize>()
                                 .unwrap(),
-                            y: fields[3]
-                                .split_once("+")
+                            fields[3]
+                                .split_once('+')
                                 .unwrap()
                                 .1
-                                .parse::<isize>()
+                                .parse::<usize>()
                                 .unwrap(),
-                        }
+                        )
                     },
                     button_b: {
                         let fields: Vec<&str> = lines[1].split_whitespace().collect();
                         assert_eq!(fields.len(), 4);
                         assert_eq!((fields[0], fields[1]), ("Button", "B:"));
-                        Vector {
-                            x: fields[2]
-                                .split_once("+")
+                        (
+                            fields[2]
+                                .split_once('+')
                                 .unwrap()
                                 .1
                                 .trim_end_matches(',')
-                                .parse::<isize>()
+                                .parse::<usize>()
                                 .unwrap(),
-                            y: fields[3]
-                                .split_once("+")
+                            fields[3]
+                                .split_once('+')
                                 .unwrap()
                                 .1
-                                .parse::<isize>()
+                                .parse::<usize>()
                                 .unwrap(),
-                        }
+                        )
                     },
                 }
             })
@@ -103,11 +112,7 @@ pub fn part_1(input: &Input) -> crate::Output {
     input
         .machines
         .iter()
-        .filter_map(|machine| {
-            machine
-                .winning_play()
-                .map(|(a, b)| (a as usize * 3 + b as usize))
-        })
+        .filter_map(|machine| machine.winning_play().map(|(a, b)| (a * 3 + b)))
         .sum::<usize>()
         .into()
 }
@@ -118,11 +123,10 @@ pub fn part_2(input: &Input) -> crate::Output {
         .machines
         .iter_mut()
         .filter_map(|machine| {
-            machine.prize.x += 10000000000000;
-            machine.prize.y += 10000000000000;
-            machine
-                .winning_play()
-                .map(|(a, b)| (a as usize * 3 + b as usize))
+            const ADD: usize = 10_000_000_000_000;
+            machine.prize.x += ADD;
+            machine.prize.y += ADD;
+            machine.winning_play().map(|(a, b)| (a * 3 + b))
         })
         .sum::<usize>()
         .into()

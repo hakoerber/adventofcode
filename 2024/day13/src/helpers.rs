@@ -479,13 +479,9 @@ where
 }
 
 pub fn whole_div(a: isize, b: isize) -> Option<isize> {
-    if b == 0 {
+    if b == 0 || a % b != 0 {
         None
     } else {
-        if a % b != 0 {
-            None
-        } else {
-            Some(a / b)
-        }
+        Some(a / b)
     }
 }
