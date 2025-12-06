@@ -2,7 +2,7 @@
 
 use std::fmt::Display;
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Point {
     pub x: usize,
     pub y: usize,
@@ -188,10 +188,6 @@ where
 impl<T> Grid<T> {
     pub fn width(&self) -> usize {
         self.width
-    }
-
-    pub fn area(&self) -> usize {
-        self.inner.len()
     }
 
     pub fn transform<U>(self, f: impl FnMut(T) -> U) -> Grid<U> {
