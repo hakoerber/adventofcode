@@ -196,7 +196,7 @@ impl<T> Grid<T> {
         self.inner.len() / self.width
     }
 
-    pub fn rows(&self) -> impl Iterator<Item = GridRow<T>> {
+    pub fn rows(&self) -> impl Iterator<Item = GridRow<'_, T>> {
         self.inner
             .chunks(self.width)
             .enumerate()
@@ -265,7 +265,7 @@ impl<T> Grid<T>
 where
     T: Copy,
 {
-    pub fn iter(&self) -> GridIter<T> {
+    pub fn iter(&self) -> GridIter<'_, T> {
         GridIter {
             point: Point { x: 0, y: 0 },
             grid: self,
@@ -446,13 +446,10 @@ where
     T: PartialEq<T> + Copy + 'a,
 {
     grid.iter().enumerate().flat_map(|(y, line)| {
-        let i = line
-            .as_ref()
+        line.as_ref()
             .iter()
             .enumerate()
-            .map(move |(x, _elem)| (y, x));
-
-        i
+            .map(move |(x, _elem)| (y, x))
     })
 }
 
@@ -466,7 +463,7 @@ where
 {
     let mut result = Vec::new();
     for elem in v {
-        if !result.iter().any(|e| *e == elem) {
+        if !result.contains(&elem) {
             result.push(elem.clone());
         }
     }
